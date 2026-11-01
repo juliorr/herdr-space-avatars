@@ -11,7 +11,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, appHome } from "herdr";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, appHome, props } from "herdr";
 import { SHARED_KEY, parseIconListing, resolveIcon } from "./avatars.js";
 import { MOD } from "./files.js";
 import { SpaceMenu } from "./menu.js";
@@ -413,7 +413,9 @@ class Spaces extends View {
 
 // One mod, three views: the sidebar (in a layout), its space menu and its icon dialog.
 export default class SpaceAvatars extends Spaces {
-  init(p, cx) {
+  init(given, cx) {
+    // An overlay gets its props through props(), not as init's argument.
+    const p = given?.view ? given : props();
     const Part = p?.view === "menu" ? SpaceMenu : p?.view === "pick" ? PickIcon : null;
     if (!Part) return super.init(p, cx);
     this.part = new Part();
