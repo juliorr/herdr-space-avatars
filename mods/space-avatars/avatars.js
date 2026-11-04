@@ -72,9 +72,45 @@ export function parseIconListing(listing) {
   return icons;
 }
 
-// A space's avatar: its own icon, else its repo's from space-icons/, else null (the letter tile).
-export function resolveIcon({ spaceId, repo, icons, folderIcons }) {
-  return icons?.[spaceId] ?? folderIcons?.[String(repo ?? "").toLowerCase()] ?? null;
+// `cksum` output: path relative to the app folder -> its checksum.
+export function parseChecksums(text) {
+  const sums = {};
+  for (const line of String(text ?? "").split("\n")) {
+    const m = /^(\d+) \d+ (.+)$/.exec(line);
+    if (m) sums[m[2]] = m[1];
+  }
+  return sums;
+}
+
+// Another machine's icons, as copies here: `shared` is its space-avatars.icons, `sums`
+// its parseChecksums() of data/space-avatars/* and space-icons/*. A copy is named by
+// machine and checksum, so a changed image gets a new one.
+// { icons: { "machine/spaceId": copy }, folderIcons: { repo: copy }, files: { copy: its path there } }
+export function remoteIcons(machine, shared, sums) {
+  const files = {};
+  const copy = (rel) => {
+    if (typeof rel !== "string" || !sums?.[rel] || !iconType(rel)) return null;
+    const safe = String(machine).replace(/[^A-Za-z0-9_-]/g, "_");
+    const file = `${DATA_DIR}/remote/${safe}-${sums[rel]}-${rel.split("/").pop()}`;
+    files[file] = rel;
+    return file;
+  };
+  const icons = {};
+  for (const [id, rel] of Object.entries(shared ?? {})) {
+    const file = copy(rel);
+    if (file) icons[`${machine}/${id}`] = file;
+  }
+  const listing = Object.keys(sums ?? {}).filter((rel) => rel.startsWith("space-icons/")).map((rel) => rel.slice(12)).join("\n");
+  const folderIcons = {};
+  for (const [repo, rel] of Object.entries(parseIconListing(listing))) folderIcons[repo] = copy(rel);
+  return { icons, folderIcons, files };
+}
+
+// A space's avatar: its own icon, else (a space on another machine) that machine's icon
+// for it or its repo, else its repo's from space-icons/, else null (the letter tile).
+export function resolveIcon({ spaceId, repo, icons, folderIcons, remote }) {
+  const name = String(repo ?? "").toLowerCase();
+  return icons?.[spaceId] ?? remote?.icons?.[spaceId] ?? remote?.folderIcons?.[name] ?? folderIcons?.[name] ?? null;
 }
 
 // Only copies this mod made may be deleted: files directly in DATA_DIR.

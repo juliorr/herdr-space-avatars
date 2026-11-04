@@ -2,7 +2,8 @@
 
 A [Herdr](https://herdr.dev) mod: the Spaces sidebar with a custom image per
 space. Right-click a space, **Set icon…**, and paste or drop an image
-(png, jpg, jpeg, gif, webp, svg). Spaces without one use
+(png, jpg, jpeg, gif, webp, svg). Spaces without one use, for a space on
+another machine, the icon that machine's herdr-app shows for it, then
 `~/.config/herdr-app/space-icons/<repo>.<ext>`, then Herdr's letter tile.
 
 ## Install
