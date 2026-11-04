@@ -1,5 +1,5 @@
 // The space menu (right-click a space): the shipped `menu` mod's space items, plus
-// "Set icon…" (spaces on this computer) and "Remove icon" (when one is set).
+// "Set icon…" and "Remove icon" (when one is set).
 // Opened as a popup of this mod with props { view: "menu", space }.
 // ↑/↓ move, Enter runs, Esc closes.
 
@@ -31,7 +31,7 @@ function items(id, git) {
     ["Rename", "space.rename", { id }],
     ...(git ? [["New worktree", "worktree", { space: id, action: "new" }], ["Open worktree", "worktree", { space: id, action: "open" }]] : []),
     ...(git === "linked" ? [["Remove worktree", "worktree", { space: id, action: "remove" }]] : []),
-    ...(space && !space.machine ? [["Set icon…", "icon.set", { space: id }]] : []),
+    ...(space ? [["Set icon…", "icon.set", { space: id }]] : []),
     ...(has ? [["Remove icon", "icon.remove", { space: id }]] : []),
     ["Close", "space.close", { id }],
   ];

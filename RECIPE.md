@@ -29,7 +29,7 @@ letter tile.
 - The space menu: a popup (200px wide) styled like Herdr's: 31px items with a
   14px icon, the label, and the bound key on the right; a 1px divider before
   Close. Items: Rename, New worktree, Open worktree (in a repo), Remove worktree
-  (in a worktree), **Set icon…** (spaces on this computer), **Remove icon** (when
+  (in a worktree), **Set icon…**, **Remove icon** (when
   the space has its own), Close.
 - The icon dialog (460×250, centered): title "Icon for <space>", an "Image file"
   input (placeholder `~/Pictures/icon.png`), a hint line "PNG, JPG, GIF, WebP or
