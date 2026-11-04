@@ -17,10 +17,13 @@ letter tile.
   machine headers (26px) once a space on another computer is known.
 - Before each top-level space's name: an 18×18px avatar, 5px rounded. Which one:
   1. the image picked for that space with **Set icon…**;
-  2. else `space-icons/<repo>.<png|jpg|jpeg|gif|webp|svg>` (the repo's name,
+  2. else, for a space on another machine, the icon that machine's own herdr-app
+     shows for it (its Set icon… pick, else its `space-icons/` match), copied
+     to `data/space-avatars/remote/`;
+  3. else `space-icons/<repo>.<png|jpg|jpeg|gif|webp|svg>` (the repo's name,
      case-insensitive; a folder that isn't a repo goes by its folder name; when a
      repo has several, the first type in that list wins);
-  3. else Herdr's tile: the space's color from `shared("space.colors")`
+  4. else Herdr's tile: the space's color from `shared("space.colors")`
      (`ansi6` → `#22a99a`, `ansi3` → `#e3814f`, `ansi4` → `#5b8def`,
      `ansi5` → `#8b7cf6`, `ansi2` → `#3fae6a`, `ansi1` → `#d9649a`) with its first
      letter, bold 10.5px white.
@@ -110,9 +113,11 @@ letter tile.
 - The mod's name `space-avatars` is written in `files.js` (`MOD`), used for its
   own overlays and `mods/space-avatars/image.svg`: renaming the folder means
   changing it too.
-- Spaces on other machines can't pick an icon (the file would be on that
-  machine); they still show one already mapped to their id and their
-  `space-icons/` match.
+- A space on another machine picks its image from this computer (the copy stays
+  here). Its machine's own icons come over `exec(..., { on })`: every 15s,
+  `cksum` of its `data/space-avatars/*` and `space-icons/*` plus its
+  `shared.json`; an image not copied yet travels as base64 text (exec carries
+  text only), and copies it no longer uses are deleted. Not on Windows.
 - Mappings of closed spaces stay in the shared key (and their copies on disk);
   a new space gets a new id, so they never show again.
 - `herdr-app check` renders only the sidebar view; the menu and dialog are
@@ -134,4 +139,6 @@ letter tile.
   the copy is deleted.
 - A path to a `.txt` file or a missing file shows the error in the dialog and
   changes nothing.
-- A space on another machine has no Set icon… item.
+- A space on another machine has a Set icon… item too.
+- A space on another machine whose herdr-app has an icon for it (or its repo)
+  shows that icon here, and a copy appears in `data/space-avatars/remote/`.

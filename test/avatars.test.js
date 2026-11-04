@@ -8,6 +8,8 @@ import {
   avatarFile,
   parseIconListing,
   resolveIcon,
+  parseChecksums,
+  remoteIcons,
   ownsFile,
   withIcon,
   withoutIcon,
@@ -161,5 +163,58 @@ describe("withIcon / withoutIcon", () => {
     expect(a).toEqual({ s1: "x" });
     expect(withoutIcon(b, "s1")).toEqual({ s2: "y" });
     expect(withoutIcon(null, "s1")).toEqual({});
+  });
+});
+
+describe("parseChecksums", () => {
+  test("maps each `cksum` line's path to its checksum", () => {
+    const out = "123 45 data/space-avatars/sp1-aa.png\n678 9 space-icons/My Repo.svg\n\n";
+    expect(parseChecksums(out)).toEqual({ "data/space-avatars/sp1-aa.png": "123", "space-icons/My Repo.svg": "678" });
+  });
+
+  test("skips lines that aren't checksums", () => {
+    expect(parseChecksums("cksum: space-icons/*: No such file or directory\n")).toEqual({});
+    expect(parseChecksums(null)).toEqual({});
+  });
+});
+
+describe("remoteIcons", () => {
+  const sums = {
+    "data/space-avatars/sp1-aa.png": "111",
+    "space-icons/Herdr.png": "222",
+    "space-icons/herdr.svg": "333",
+    "space-icons/notes.txt": "444",
+  };
+
+  test("maps the machine's per-space icons to local copies named by machine and checksum", () => {
+    const r = remoteIcons("10.0.0.5", { sp1: "data/space-avatars/sp1-aa.png" }, sums);
+    expect(r.icons).toEqual({ "10.0.0.5/sp1": "data/space-avatars/remote/10_0_0_5-111-sp1-aa.png" });
+    expect(r.files["data/space-avatars/remote/10_0_0_5-111-sp1-aa.png"]).toBe("data/space-avatars/sp1-aa.png");
+  });
+
+  test("maps its repo icons, preferring types as space-icons/ does", () => {
+    const r = remoteIcons("m", {}, sums);
+    expect(r.folderIcons).toEqual({ herdr: "data/space-avatars/remote/m-222-Herdr.png" });
+    expect(Object.values(r.files)).toEqual(["space-icons/Herdr.png"]);
+  });
+
+  test("leaves out icons whose file isn't there or isn't an image", () => {
+    const r = remoteIcons("m", { sp2: "data/space-avatars/gone.png", sp3: "../etc/passwd", sp4: 7 }, sums);
+    expect(r.icons).toEqual({});
+  });
+});
+
+describe("resolveIcon with a machine's icons", () => {
+  const remote = { icons: { "m/sp1": "data/space-avatars/remote/m-1-a.png" }, folderIcons: { herdr: "data/space-avatars/remote/m-2-herdr.png" } };
+  const folderIcons = { herdr: "space-icons/herdr.png", notes: "space-icons/notes.png" };
+
+  test("this computer's own icon for the space still wins", () => {
+    expect(resolveIcon({ spaceId: "m/sp1", repo: "herdr", icons: { "m/sp1": "mine.png" }, folderIcons, remote })).toBe("mine.png");
+  });
+
+  test("then the machine's icon for the space, then its repo icon, then this computer's", () => {
+    expect(resolveIcon({ spaceId: "m/sp1", repo: "herdr", icons: {}, folderIcons, remote })).toBe(remote.icons["m/sp1"]);
+    expect(resolveIcon({ spaceId: "m/sp2", repo: "Herdr", icons: {}, folderIcons, remote })).toBe(remote.folderIcons.herdr);
+    expect(resolveIcon({ spaceId: "m/sp2", repo: "notes", icons: {}, folderIcons, remote })).toBe("space-icons/notes.png");
   });
 });

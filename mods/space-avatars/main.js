@@ -6,13 +6,15 @@
 // space-avatars: a copy of Herdr's `spaces` mod where a space's letter can be
 // an image. The space menu's "Set icon…" picks one per space (copied to
 // data/space-avatars/, mapped in shared("space-avatars.icons")); else an image
-// named after its repo in the app folder's space-icons/; else the letter.
+// named after its repo in the app folder's space-icons/; else the letter. A space on
+// another machine also shows the icon that machine's herdr-app has for it or its repo.
 // The same mod also draws that menu and dialog (props.view "menu" / "pick").
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, appHome, props } from "herdr";
-import { SHARED_KEY, parseIconListing, resolveIcon } from "./avatars.js";
+import { writeFile, unlink } from "fs/promises";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, appHome, props, readTextFile } from "herdr";
+import { SHARED_KEY, DATA_DIR, parseIconListing, parseChecksums, remoteIcons, resolveIcon } from "./avatars.js";
 import { MOD } from "./files.js";
 import { SpaceMenu } from "./menu.js";
 import { PickIcon } from "./pick.js";
@@ -66,6 +68,7 @@ class Spaces extends View {
     this.at = {}; // space -> its where() at the last look
     this.watching = new Set(); // local repos' git folders
     this.icons = {}; // lowercased repo name -> its image, relative to the app folder
+    this.remote = {}; // machine -> its own icons, as remoteIcons() gives them
     // Spaces made while this runs wait (at most a moment) for their git, so a
     // worktree appears under its repo instead of jumping there.
     this.shown = new Set(spaces().map((s) => s.id));
@@ -134,8 +137,51 @@ class Spaces extends View {
   refreshMachines(cx) {
     cx.spawn(async cx => {
       try { const r = await hc(["machine", "ls", "--json"]); if (r.code === 0) this.machines = (JSON.parse(r.stdout).machines ?? []).filter((m) => !m.temporary); } catch {}
+      this.syncRemote(cx);
       cx.notify();
     });
+  }
+
+  // Each connected machine's own icons (set in its herdr-app), copied here as they change.
+  syncRemote(cx) {
+    if (this.syncing || window().platform === "windows") return;
+    this.syncing = true;
+    cx.spawn(async (cx) => {
+      for (const m of this.machines.filter((k) => k.state === "connected")) {
+        try { this.remote[m.name] = (await this.fetchRemote(m.name)) ?? this.remote[m.name]; } catch {}
+      }
+      this.syncing = false;
+      cx.notify();
+    });
+  }
+
+  // One machine's icons: its shared.json and checksums, then copies of the images not here yet
+  // (base64 over exec: it carries text only). Copies it no longer uses are deleted.
+  async fetchRemote(on) {
+    const r = await exec("sh", ["-c", 'h="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"; echo "$h"; cd "$h" && cksum data/space-avatars/* space-icons/* 2>/dev/null; true'], { on });
+    const [dir, ...rest] = r.stdout.split("\n");
+    if (r.code !== 0 || !dir) return null;
+    const text = await readTextFile(`${dir}/shared.json`, { on });
+    const got = remoteIcons(on, JSON.parse(text ?? "{}")[SHARED_KEY], parseChecksums(rest.join("\n")));
+    const folder = `${appHome()}/${DATA_DIR}/remote`;
+    await exec("mkdir", ["-p", folder]);
+    const failed = new Set();
+    for (const [file, rel] of Object.entries(got.files)) {
+      const dest = `${appHome()}/${file}`;
+      if ((await exec("test", ["-f", dest])).code === 0) continue;
+      const b = await exec("sh", ["-c", 'base64 < "$1"', "_", `${dir}/${rel}`], { on });
+      const tmp = `${dest}.b64`;
+      const ok = b.code === 0 && (await writeFile(tmp, b.stdout).then(() => true, () => false))
+        && (await exec("sh", ["-c", 'base64 -d < "$1" > "$2"', "_", tmp, dest])).code === 0;
+      await unlink(tmp).catch(() => {});
+      if (!ok) { failed.add(file); await exec("rm", ["-f", "--", dest]); }
+    }
+    const keep = (map) => Object.fromEntries(Object.entries(map).filter(([, f]) => !failed.has(f)));
+    const prefix = `${String(on).replace(/[^A-Za-z0-9_-]/g, "_")}-`;
+    const used = new Set(Object.keys(got.files).map((f) => f.split("/").pop()));
+    const ls = await exec("ls", ["-1", folder]);
+    for (const name of ls.stdout.split("\n")) if (name.startsWith(prefix) && !used.has(name)) await exec("rm", ["-f", "--", `${folder}/${name}`]);
+    return { icons: keep(got.icons), folderIcons: keep(got.folderIcons) };
   }
 
   // One look at a time, each place once however often it was asked for meanwhile.
@@ -317,7 +363,7 @@ class Spaces extends View {
   row({ w, i, g, tree, folder }, t) {
     const on = w.active;
     // Its own image, else its repo's (not a repo, or not known yet: its folder's name).
-    const icon = resolveIcon({ spaceId: w.id, repo: g?.name ?? base(folder ?? ""), icons: shared(SHARED_KEY), folderIcons: this.icons });
+    const icon = resolveIcon({ spaceId: w.id, repo: g?.name ?? base(folder ?? ""), icons: shared(SHARED_KEY), folderIcons: this.icons, remote: this.remote[w.machine] });
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
